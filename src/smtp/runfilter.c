@@ -88,7 +88,7 @@ static void smtp_runfilter__child(char *command, char *file, char *outfile,
 	}
 	close(errfd);
 
-	execl("/bin/sh", "sh", "-c", command, 0);
+	execl("/bin/sh", "sh", "-c", command, NULL);
 
 	log_line(LOGPRI_ERROR, _("failed to run command [%s]: %s"),
 		 command, strerror(errno));
