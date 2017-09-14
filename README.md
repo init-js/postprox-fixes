@@ -1,5 +1,5 @@
-Introduction
-************
+# Introduction
+
 
 This is the README for `postprox', a minimal Postfix SMTP proxy.  Postprox
 is an SMTP proxy which copies an SMTP conversation between its input and
@@ -8,54 +8,49 @@ runs a specified program on it before passing it on to the output server -
 or outputting an SMTP error code instead if the content filter says so.
 
 
-Documentation
-*************
+# Documentation
 
 A manual page is included in this distribution.  If you prefer plain text,
-then look at `doc/quickref.txt' for a text version.
+then look at [Quick Reference](doc/quickref.txt) for a text version.
 
 
-Dependencies
-************
+# Dependencies
 
 This package was written to be used as a before-queue or after-queue Postfix
 content filter.  It reads and writes SMTP on stdin/out, so may or may not be
 usable with other mailers.
 
 
-Compilation
-***********
+# Compilation
 
-To compile the package, type "sh ./configure", which should generate a
-Makefile for your system.  You may then type "make" to build everything. 
+To compile the package, type `sh ./configure`, which should generate a
+Makefile for your system.  You may then type `make` to build everything. 
 You may need GNU `make' for compilation to work properly.
 
-See the file `doc/INSTALL' for more about the `configure' script.
+See the file [INSTALL](doc/INSTALL) for more about the `configure` script.
 
-Developers note that you can do "./configure --enable-debugging" to cause
-debugging support to be built in.  Also note that doing "make index" will
-generate an HTML code index (using `ctags' and `cproto'); this index lists
+Developers note that you can do `./configure --enable-debugging` to cause
+debugging support to be built in.  Also note that doing `make index` will
+generate an HTML code index (using `ctags` and `cproto`); this index lists
 all files used, all functions defined, and all TODOs marked in the code.
 
 Memory allocation tracing (MALLOC_TRACE) may cause a crash if the allocation
 log file gets too large (>2GB usually).  This is a bug in the C library;
-unfortunately it cannot be fixed in `qsf'.
+unfortunately it cannot be fixed in `qsf`.
 
 
-Author
-******
+# Author
 
 This package is copyright (C) 2006 Andrew Wood, and is being distributed
 under the terms of the Artistic License.  For more details, see the file
-`doc/COPYING'.
+[COPYING](doc/COPYING).
 
 You can contact me by email at andrew.wood@ivarch.com or by using the
-contact form on my web page at http://www.ivarch.com/.
+contact form on my [Web Page](http://www.ivarch.com/).
 
-The `postprox' home page is at:
+The `postprox` home page is at:
 
   http://www.ivarch.com/programs/postprox.shtml
 
-The latest version can always be found here.
+The latest version can always be found there.
 
------------------------------------------------------------------------------
