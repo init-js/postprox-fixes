@@ -243,14 +243,15 @@ int smtp_runfilter(opts_t opts, char *file, char *outfile, char *errbuf,
 	if (childexited && (childexitcode == 1)) {
 		FILE *fptr;
 
+		errbuf[0] = '\0';
+
 		fptr = fopen(errfile, "r");
 		if (fptr) {
-			while (!feof(fptr)) {
-				fgets(errbuf, bufsize, fptr);
-			}
-			fclose(fptr);
+		  while (fgets(errbuf, bufsize, fptr));
+		  fclose(fptr);
+		  fptr = NULL;
 		}
-		errbuf[bufsize - 1] = 0;
+		errbuf[bufsize - 1] = '\0';
 
 #ifdef DEBUG
 		if (opts->debug > 0)
