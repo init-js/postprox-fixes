@@ -33,7 +33,10 @@ int test_proxyinfo_checkline(FILE * fptr, char *str)
 
 	linebuf[0] = 0;
 	linebuf[sizeof(linebuf) - 1] = 0;
-	fgets(linebuf, sizeof(linebuf) - 1, fptr);
+
+	if (!fgets(linebuf, sizeof(linebuf) - 1, fptr)) {
+	  return 1;
+	}
 
 	ptr = strchr(linebuf, '\n');
 	if (ptr)
