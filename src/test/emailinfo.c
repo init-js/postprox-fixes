@@ -35,7 +35,8 @@ int test_proxyinfo_checkline(FILE * fptr, char *str)
 	linebuf[sizeof(linebuf) - 1] = 0;
 
 	if (!fgets(linebuf, sizeof(linebuf) - 1, fptr)) {
-	  return 1;
+		TEST_BORK();
+		return 1;
 	}
 
 	ptr = strchr(linebuf, '\n');
@@ -45,11 +46,13 @@ int test_proxyinfo_checkline(FILE * fptr, char *str)
 	if (strlen(str) < 99) {
 		if (strcmp(str, linebuf) == 0)
 			return 0;
+		TEST_BORK("expected:\n '%s'\nbut got\n '%s'", str, linebuf);
 		return 1;
 	}
 
 	if (strncmp(str, linebuf, 99) == 0)
 		return 0;
+	TEST_BORK();
 	return 1;
 }
 
@@ -75,12 +78,14 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 	int ret;
 
 	if (pipe(insrv_rfd)) {
+		TEST_BORK();
 		return 1;
 	}
 
 	if (pipe(outsrv_rfd)) {
 		close(insrv_rfd[0]);
 		close(insrv_rfd[1]);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -90,6 +95,7 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 		close(insrv_rfd[1]);
 		close(outsrv_rfd[0]);
 		close(outsrv_rfd[1]);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -100,6 +106,7 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 		close(outsrv_rfd[0]);
 		close(outsrv_rfd[1]);
 		close(insrv_wfd);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -110,6 +117,7 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 		close(outsrv_rfd[1]);
 		close(insrv_wfd);
 		close(outsrv_wfd);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -122,6 +130,7 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 		close(outsrv_wfd);
 		close(filterfd);
 		remove(filterfile);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -150,6 +159,7 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 		close(outsrv_wfd);
 		remove(filterfile);
 		remove(filteroutfile);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -221,14 +231,19 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 	}
 
 	ret = 0;
-	if (test_proxyinfo_checkline(fptr, ipaddr))
+	if (test_proxyinfo_checkline(fptr, ipaddr)) {
+		TEST_BORK();
 		ret = 1;
-	if (test_proxyinfo_checkline(fptr, helo))
+	} else if (test_proxyinfo_checkline(fptr, helo)) {
+		TEST_BORK();
 		ret = 1;
-	if (test_proxyinfo_checkline(fptr, sender))
+	} else if (test_proxyinfo_checkline(fptr, sender)) {
+		TEST_BORK();
 		ret = 1;
-	if (test_proxyinfo_checkline(fptr, recipient))
+	} else if (test_proxyinfo_checkline(fptr, recipient)) {
+		TEST_BORK();
 		ret = 1;
+	}
 
 	fclose(fptr);
 	remove(filteroutfile);

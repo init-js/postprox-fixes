@@ -40,13 +40,16 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 	int status;
 	int ret;
 
+
 	if (pipe(insrv_rfd)) {
+		TEST_BORK();
 		return 1;
 	}
 
 	if (pipe(outsrv_rfd)) {
 		close(insrv_rfd[0]);
 		close(insrv_rfd[1]);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -56,6 +59,7 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 		close(insrv_rfd[1]);
 		close(outsrv_rfd[0]);
 		close(outsrv_rfd[1]);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -65,6 +69,7 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 		close(outsrv_rfd[0]);
 		close(outsrv_rfd[1]);
 		close(insrv_wfd);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -76,6 +81,7 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 		close(insrv_wfd);
 		close(insrv_rcfd);
 		remove(insrv_rcfile);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -91,6 +97,7 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 		remove(insrv_rcfile);
 		close(outsrv_wfd);
 		remove(outsrv_wfile);
+		TEST_BORK();
 		return 1;
 	}
 
@@ -117,28 +124,28 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 	close(outsrv_rfd[0]);
 
 	test_fdprintf(outsrv_rfd[1], "%s\r\n", "220 test ESMTP");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 	test_fdprintf(insrv_rfd[1], "%s\r\n", "HELO me");
 	test_fdprintf(insrv_rcfd, "%s\r\n", "HELO me");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 	test_fdprintf(outsrv_rfd[1], "%s\r\n", "250 test");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 
 	test_fdprintf(insrv_rfd[1], "%s\r\n", "MAIL FROM:<test@test.com>");
 	test_fdprintf(insrv_rcfd, "%s\r\n", "MAIL FROM:<test@test.com>");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 	test_fdprintf(outsrv_rfd[1], "%s\r\n", "250 OK");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 
 	test_fdprintf(insrv_rfd[1], "%s\r\n", "RCPT TO:<test@test.com>");
 	test_fdprintf(insrv_rcfd, "%s\r\n", "RCPT TO:<test@test.com>");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 	test_fdprintf(outsrv_rfd[1], "%s\r\n", "250 OK");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 
 	test_fdprintf(insrv_rfd[1], "%s\r\n", "DATA");
 	test_fdprintf(insrv_rcfd, "%s\r\n", "DATA");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 
 	/*
 	 * We now need to encode the data we want to send using the
@@ -196,12 +203,12 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 
 	test_fdprintf(insrv_rfd[1], "%s\r\n", ".");
 	test_fdprintf(insrv_rcfd, "%s\r\n", ".");
-	test_usleep(2000);
+	test_usleep(TEST_SLEEP_US);
 	test_fdprintf(outsrv_rfd[1], "%s\r\n",
 		      "354 End data with <CR><LF>.<CR><LF>");
-	test_usleep(1000);
+	test_usleep(TEST_SLEEP_US);
 	test_fdprintf(outsrv_rfd[1], "%s\r\n", "250 OK sent");
-	test_usleep(100);
+	test_usleep(TEST_SLEEP_US);
 
 	/*
 	 * Here we just disconnect instead of sending the QUIT, but we store
@@ -239,18 +246,22 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 		       && (!feof(fptr1))
 		       && (!feof(fptr2))
 		    ) {
-			got1 = fread(buf1, 1, sizeof(buf1), fptr1);
-			if (got1 < 0) {
+			got1 = fread(buf1, 1, sizeof(buf1) - 1, fptr1);
+			buf1[got1] = '\0';
+			if (got1 < 1) {
 				ret = 1;
+				TEST_BORK();
 				break;
 			}
 			got2 = fread(buf2, got1, 1, fptr2);
 			if (got2 < 1) {
 				ret = 1;
+				TEST_BORK();
 				break;
 			}
 			if (memcmp(buf1, buf2, got1) != 0) {
 				ret = 1;
+				TEST_BORK();
 				break;
 			}
 		}
@@ -268,6 +279,9 @@ int test_proxydata(opts_t opts, char *data, int datasize)
 	} else {
 		test_fdprintf(insrv_rcfd, "\n%s\n", _("--INPUT--"));
 		test_fdprintf(outsrv_wfd, "\n%s\n", _("--OUTPUT--"));
+		fprintf(stderr, "log files available:\n  input: %s\n  output: %s\n",
+			insrv_rcfile, outsrv_wfile);
+		TEST_BORK();
 	}
 
 	close(insrv_rcfd);
@@ -307,7 +321,6 @@ int test_data_integrity_dots(opts_t opts)
 		buf[i + 1] = 0;
 		strcat(str, buf);	    /* RATS: ignore */
 	}
-
 	return test_proxydata(opts, str, strlen(str));
 }
 
