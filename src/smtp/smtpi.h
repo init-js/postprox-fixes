@@ -11,6 +11,12 @@
 #include <time.h>
 #endif
 
+typedef enum {
+  DATAMODE_NONE = 0,         /* not processing DATA */
+  DATAMODE_REQUESTED = 1,    /* DATA command received by input server, but not 354'd yet */
+  DATAMODE_ACTIVE = 2	     /* DATA input started. inside DATA block processing. */
+} datamode_t;
+
 struct ppsmtp_s {
 	opts_t opts;		/* program options */
 	int infdr;		/* input server read descriptor */
@@ -22,12 +28,13 @@ struct ppsmtp_s {
 	char linebuf[1024];	/* RATS: ignore (checked) */
 	int linelen;		/* length of line last read */
 	int startline;		/* set if line starts at start of line */
-	int datamode;		/* flag, set if in DATA mode */
+	datamode_t datamode;	/* whether we are outside, or inside DATA mode */
 	time_t last_smtpout;	/* time last wrote to smtpfdw */
 	char *spoolfile;	/* filename we're spooling DATA to */
 	int spoolfd;		/* file descriptor for this file */
 	char *outspoolfile;	/* filename we're to read DATA from */
 	int outspoolfd;		/* file descriptor forr this file */
+	int pipelinecount;      /* count of incoming client commands in the current pipeline */
 	int ignoreresponse;	/* count of outserver responses to ignore */
 	char *ipaddr;		/* IP address passed via XFORWARD */
 	char *helo;		/* HELO passed via XFORWARD */

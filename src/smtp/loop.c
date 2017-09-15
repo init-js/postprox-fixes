@@ -26,7 +26,8 @@
 
 
 int smtp_processline(ppsmtp_t);
-
+int smtp_pipeline_drained(ppsmtp_t);
+int smtp_line_is_reply_end(const char*, int);
 
 /*
  * Perform proxying until the input SMTP server closes the connection.
@@ -133,7 +134,7 @@ int smtp_mainloop(ppsmtp_t state)
 		 */
 		if (fdline_read_available(state->outsrvline)
 		    || (FD_ISSET(state->outfdr, &readfds))
-		    ) {
+			) {
 
 			state->linelen =
 			    fdline_read(state->outsrvline, state->linebuf,
@@ -166,36 +167,58 @@ int smtp_mainloop(ppsmtp_t state)
 			 * the input server doesn't know about; we just drop
 			 * those responses so the input server doesn't get
 			 * confused.
+			 *
+			 * In cases where we have pipelined commands
+			 * that are outstanding, we have to proxy back
+			 * an equal amount of replies before we start
+			 * ignoring.
+			 *
 			 */
-			if ((state->linelen > 0)
-			    && (state->startline)
-			    && (state->ignoreresponse > 0)
-			    && ((state->linebuf[0] >= '2')
-				&& (state->linebuf[0] <= '5')
-			    )
-			    ) {
-				state->ignoreresponse--;
+			if (state->linelen > 0) {
+				int command_completed = (state->startline &&
+							 smtp_line_is_reply_end(state->linebuf, state->linelen));
+
+				if (state->pipelinecount == 0 && state->ignoreresponse > 0) {
+					if (command_completed) {
+						state->ignoreresponse--;
+					}
 #ifdef DEBUG
-				if (state->opts->debug > 1) {
-					log_line(LOGPRI_DEBUG,
-						 "Not sending this to input server: > %.*s",
-						 state->linelen,
-						 state->linebuf);
-				}
+					if (state->opts->debug > 1) {
+						log_line(LOGPRI_DEBUG,
+							 "Not sending this to input server: > %.*s",
+							 state->linelen,
+							 state->linebuf);
+					}
 #endif
-			} else if (state->linelen > 0) {
+				} else {
 
-				/*
-				 * Note that after sending QUIT, the input
-				 * server may just disconnect without
-				 * waiting for the output server to reply.
-				 */
+					/*
+					 * Note that after sending QUIT, the input
+					 * server may just disconnect without
+					 * waiting for the output server to reply.
+					 */
 
-				if (fdline_read_fdeof(state->insrvline) ==
-				    0) {
-					smtp_write_in(state,
-						      state->linebuf,
-						      state->linelen);
+					if (fdline_read_fdeof(state->insrvline) ==
+					    0) {
+						smtp_write_in(state,
+							      state->linebuf,
+							      state->linelen);
+					}
+
+					if (command_completed) {
+						if (state->pipelinecount > 0) {
+							state->pipelinecount--;
+							if (state->pipelinecount == 0) {
+								smtp_pipeline_drained(state);
+							}
+						} else {
+							log_line(LOGPRI_ERROR,
+								 "%s", "Pipeline count is off. received extraneous reply: > %.*s",
+								 state->linelen,
+								 state->linebuf);
+						}
+					}
+
 				}
 			}
 		}

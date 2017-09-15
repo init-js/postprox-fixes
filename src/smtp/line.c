@@ -20,7 +20,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-
 int smtp_runfilter(opts_t, char *, char *, char *, int, char *, char *,
 		   char *, char *);
 
@@ -481,13 +480,39 @@ static int smtp_processline__tempfile(ppsmtp_t state, char **filenameptr,
 
 
 /*
+ * Invoked when the loop receives a reply from the outserver which
+ * ends the last outstanding client command. If we've received the
+ * DATA command already, then it is time to give the go-ahead to the
+ * client to send the mail data.
+ */
+int smtp_pipeline_drained(ppsmtp_t state)
+{
+	char okbuf[256];		 /* RATS: ignore (checked) */
+
+	if (state->datamode == DATAMODE_REQUESTED && state->pipelinecount == 0) {
+		/*
+		 * Tell the input server to go ahead with the DATA.
+		 */
+		sprintf(okbuf, "354 %.200s\r\n",
+			_("End data with <CR><LF>.<CR><LF>"));
+		smtp_write_in(state, okbuf, strlen(okbuf));
+
+		/*
+		 * avoid re-entering this case
+		 */
+		state->datamode = DATAMODE_ACTIVE;
+	}
+
+	return 0;
+}
+
+/*
  * Enter DATA mode by creating a spool file with a unique name, and also
  * creating an output spool file ready to receive filter output. Returns
  * nonzero on error.
  */
 static int smtp_processline__datastart(ppsmtp_t state)
 {
-	char okbuf[256];		 /* RATS: ignore (checked) */
 	char *filename;
 	int fd;
 
@@ -517,7 +542,7 @@ static int smtp_processline__datastart(ppsmtp_t state)
 	state->outspoolfile = filename;
 	state->outspoolfd = fd;
 
-	state->datamode = 1;
+	state->datamode = DATAMODE_REQUESTED;
 
 #ifdef DEBUG
 	if (state->opts->debug > 0)
@@ -529,15 +554,26 @@ static int smtp_processline__datastart(ppsmtp_t state)
 #endif
 
 	/*
-	 * Tell the input server to go ahead with the DATA.
+	 * Force the output server to respond to all pipelined
+	 * requests thus far. send NOOP to act as a sync point.
+	 *
+	 * https://tools.ietf.org/html/rfc2920
 	 */
-	sprintf(okbuf, "354 %.200s\r\n",
-		_("End data with <CR><LF>.<CR><LF>"));
-	smtp_write_in(state, okbuf, strlen(okbuf));
-
+	if (state->pipelinecount > 0) {
+#ifdef DEBUG
+		if (state->opts->debug > 0)
+			log_line(LOGPRI_DEBUG,
+				 "waiting for %d outstanding commands to complete"
+				 " before allowing data to flow in",
+				 state->pipelinecount);
+#endif
+		smtp_write_out(state, "NOOP\r\n", 6);
+		state->ignoreresponse++;
+	} else {
+		smtp_pipeline_drained(state);
+	}
 	return 0;
 }
-
 
 /*
  * Read any information we need from an XFORWARD line.
@@ -660,6 +696,29 @@ static void smtp_processline__rcptto(ppsmtp_t state)
 	state->recipient = smtp_processline__getaddress(state);
 }
 
+/*
+ * Check if the given line syntactically corresponds to
+ * the last line of an SMTP reply.
+ *
+ * lines part of a multiline reply are hyphenated after the code,
+ * except for the very last line.
+ *
+ * 250-server.example.com
+ * 250-PIPELINING
+ * 250-SIZE 10240000
+ * 250 8BITMIME
+ */
+int smtp_line_is_reply_end(const char* line, int linelen)
+{
+  if (linelen < 4) {
+    return 0;
+  }
+
+  return (line[0] >= '2' && line[0] <= '5' &&
+	  line[1] >= '0' && line[1] <= '9' &&
+	  line[2] >= '0' && line[2] <= '9' &&
+	  line[3] == ' ');
+}
 
 /*
  * Process a line of SMTP from the input server, and either pass it on to
@@ -669,11 +728,27 @@ static void smtp_processline__rcptto(ppsmtp_t state)
  */
 int smtp_processline(ppsmtp_t state)
 {
+	char errbuf[256];	 /* RATS: ignore (checked) */
+
 	if (state->linelen == 0)
 		return 0;
 
-	if (state->datamode)
+	/* received the DATA command */
+	if (state->datamode == DATAMODE_REQUESTED) {
+#ifdef DEBUG
+		if (state->opts->debug > 0)
+			log_line(LOGPRI_DEBUG,
+			"received unexpected input after DATA command: %.*s",
+			state->linelen,
+			state->linebuf);
+#endif
+		sprintf(errbuf, "451 %.200s\r\n",
+			_("unexpected input after outstanding data request"));
+		smtp_write_in(state, errbuf, strlen(errbuf));
+		return 1;
+	} else if (state->datamode == DATAMODE_ACTIVE) {
 		return smtp_processline__datamode(state);
+	}
 
 	if ((state->startline)
 	    && (state->linelen > 4)
@@ -699,17 +774,17 @@ int smtp_processline(ppsmtp_t state)
 		    && (strncasecmp(state->linebuf, "RCPT TO:", 8) == 0)) {
 			smtp_processline__rcptto(state);
 		}
+
+		/* one more outstanding command */
+		state->pipelinecount += 1;
 	}
 
 	if (smtp_write_out(state, state->linebuf, state->linelen)) {
-		char errbuf[256];	 /* RATS: ignore (checked) */
-
 		log_line(LOGPRI_ERROR,
 			 _("write to output server failed: %s"),
 			 strerror(errno));
 		sprintf(errbuf, "421 %.200s\r\n",
-			_
-			("Service not available - output server write failed"));
+			_("Service not available - output server write failed"));
 		smtp_write_in(state, errbuf, strlen(errbuf));
 		return 1;
 	}
