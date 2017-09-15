@@ -35,7 +35,7 @@ int test_proxyinfo_checkline(FILE * fptr, char *str)
 	linebuf[sizeof(linebuf) - 1] = 0;
 
 	if (!fgets(linebuf, sizeof(linebuf) - 1, fptr)) {
-		TEST_BORK();
+		TEST_BORK("expected first 99 chars to match:\n '%.99s'\nbut got\n NULL", str);
 		return 1;
 	}
 
@@ -52,7 +52,7 @@ int test_proxyinfo_checkline(FILE * fptr, char *str)
 
 	if (strncmp(str, linebuf, 99) == 0)
 		return 0;
-	TEST_BORK();
+	TEST_BORK("expected first 99 chars to match:\n '%.99s'\nbut got\n '%.99s'", str, linebuf);
 	return 1;
 }
 
@@ -135,12 +135,10 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 	}
 
 	test_fdprintf(filterfd, "#!/bin/sh\n");
-	test_fdprintf(filterfd, "echo \"$REMOTEIP\" >> %s\n",
-		      filteroutfile);
-	test_fdprintf(filterfd, "echo \"$HELO\" >> %s\n", filteroutfile);
-	test_fdprintf(filterfd, "echo \"$SENDER\" >> %s\n", filteroutfile);
-	test_fdprintf(filterfd, "echo \"$RECIPIENT\" >> %s\n",
-		      filteroutfile);
+	test_fdprintf(filterfd, "printf \"%%s\\n\" \"$REMOTEIP\" >> %s\n" , filteroutfile);
+	test_fdprintf(filterfd, "printf \"%%s\\n\" \"$HELO\" >> %s\n"     , filteroutfile);
+	test_fdprintf(filterfd, "printf \"%%s\\n\" \"$SENDER\" >> %s\n"   , filteroutfile);
+	test_fdprintf(filterfd, "printf \"%%s\\n\" \"$RECIPIENT\" >> %s\n", filteroutfile);
 	test_fdprintf(filterfd, "exit 0\n");
 
 	close(filterfd);
@@ -227,21 +225,22 @@ int test_proxyinfo(opts_t opts, char *ipaddr, char *helo, char *sender,
 	fptr = fopen(filteroutfile, "r");
 	if (fptr == NULL) {
 		remove(filteroutfile);
+		TEST_BORK("%s", "no output file.");
 		return 1;
 	}
 
 	ret = 0;
 	if (test_proxyinfo_checkline(fptr, ipaddr)) {
-		TEST_BORK();
+		TEST_BORK("%s", "could not match senderip");
 		ret = 1;
 	} else if (test_proxyinfo_checkline(fptr, helo)) {
-		TEST_BORK();
+		TEST_BORK("%s", "could not match helo");
 		ret = 1;
 	} else if (test_proxyinfo_checkline(fptr, sender)) {
-		TEST_BORK();
+		TEST_BORK("%s", "could not match sender");
 		ret = 1;
 	} else if (test_proxyinfo_checkline(fptr, recipient)) {
-		TEST_BORK();
+		TEST_BORK("%s", "could not match recipient");
 		ret = 1;
 	}
 
@@ -291,6 +290,7 @@ int test_email_info_oversized(opts_t opts)
 			return 1;
 	}
 
+	test_trace_fails = 0;
 	/*
 	 * We can expect things to break for really long strings, since the
 	 * line buffering will break up the XFORWARD command, and this is

@@ -11,7 +11,13 @@ int test_tmpfd(char *, int, int *);
 int test_fdprintf(int, char *, ...);
 void test_usleep(int);
 
-#define TEST_BORK(fmt, ...) do { fprintf(stderr, "FAIL: %d %s.%s " fmt "\n", __LINE__, __FILE__, __func__, ## __VA_ARGS__); } while (0)
+extern int test_trace_fails;
+
+#define TEST_BORK(fmt, ...) do {					\
+    if (test_trace_fails)						\
+      fprintf(stderr, "FAIL: %d %s.%s " fmt "\n",			\
+	      __LINE__, __FILE__, __func__, ## __VA_ARGS__);		\
+  } while (0)
 
 #define TEST_SLEEP_US (1000*10)
 

@@ -22,6 +22,8 @@
 #include <mcheck.h>
 #endif
 
+int test_trace_fails = 0;
+
 /*
  * All tests must be prototyped here, and listed in main() below. Each test
  * should return 0 on pass, 1 on fail, and take an opts_t argument which it
@@ -111,6 +113,9 @@ int main(int argc, char **argv)
 
 		printf("%3d/%d: %-50s", testnum + 1, numtests,
 		       test[testnum].name);
+
+		test_trace_fails = 1;
+
 		if (test[testnum].func(&opts)) {
 			printf(" %s\n", _("FAILED"));
 			fail++;
